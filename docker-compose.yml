@@ -1,0 +1,83 @@
+version: "3"
+
+services:
+  # Database (Postgres)
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - ./postgresql_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Storage (for image uploads)
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    command: server --console-address ":9001" /data
+    ports:
+      - "9080:9000"
+      - "9081:9001"
+    volumes:
+      - ./minio_data:/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+
+  # Chrome Browser (for printing and previews)
+  chrome:
+    image: browserless/chrome:1.61.0-puppeteer-21.4.1
+    restart: unless-stopped
+    environment:
+      TOKEN: chrome_token
+      EXIT_ON_HEALTH_FAILURE: "true"
+      PRE_REQUEST_HEALTH_CHECK: "true"
+
+  # Redis (for cache & server session management)
+  redis:
+    image: redis:alpine
+    restart: unless-stopped
+    command: redis-server --requirepass password
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+
+  # Main Application
+  app:
+    image: amruthpillai/reactive-resume:latest
+    restart: unless-stopped
+    ports:
+      - "3030:3000"
+    depends_on:
+      - chrome
+      - minio
+      - postgres
+      - redis
+    environment:
+      PORT: 3000
+      NODE_ENV: production
+      PUBLIC_URL: http://192.168.18.5:3030
+      STORAGE_URL: http://192.168.18.5:9080/default/
+      CHROME_TOKEN: chrome_token
+      CHROME_URL: ws://chrome:3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/reactive_resumes
+      ACCESS_TOKEN_SECRET: access_token_secret
+      REFRESH_TOKEN_SECRET: refresh_token_secret
+      MAIL_FROM: resumes@example.com
+      SMTP_URL: smtp://email_user:email_password@email_server:587
+      STORAGE_ENDPOINT: minio
+      STORAGE_PORT: 9000
+      STORAGE_REGION: us-east-1
+      STORAGE_BUCKET: default
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_USE_SSL: "false"
+      REDIS_URL: redis://default:password@redis:6379

@@ -1,0 +1,6 @@
+# my folders
+minio_data/
+postgresql_data/
+redis_data/
+
+# my files
